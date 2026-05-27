@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EV Smart BMS Dashboard</title>
+
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+    background:#020617;
+    font-family:Arial, sans-serif;
+    color:white;
+    padding:15px;
+    overflow-x:hidden;
+}
+.header { text-align:center; margin-bottom:20px; }
+.header h1 {
+    color:#00ffff;
+    text-shadow:0 0 15px cyan;
+    margin-bottom:20px;
+}
+.top-buttons {
+    display:flex;
+    gap:15px;
+    justify-content:center;
+    flex-wrap:wrap;
+    margin-bottom:20px;
+}
+.btn {
+    padding:12px 18px;
+    border:none;
+    border-radius:14px;
+    font-weight:bold;
+    cursor:pointer;
+    transition:0.3s;
+}
+.settings-btn { background:#00ffff; color:black; box-shadow:0 0 15px cyan; }
+.devices-btn { background:#00ff88; color:black; box-shadow:0 0 15px #00ff88; }
+.cards {
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(180px,1fr));
+    gap:15px;
+    margin-bottom:20px;
+}
+.card {
+    background:rgba(255,255,255,0.05);
+    padding:20px;
+    border-radius:18px;
+    backdrop-filter:blur(10px);
+    border:1px solid rgba(255,255,255,0.08);
+}
+.card-title { color:#94a3b8; font-size:14px; margin-bottom:10px; }
+.card-value { font-size:28px; font-weight:bold; color:#00ffff; }
+
+.main { display:flex; flex-wrap:wrap; gap:20px; }
+.soc-card { width:150px; display:flex; flex-direction:column; align-items:center; }
+.soc-battery {
+    width:90px; height:240px;
+    border:4px solid cyan;
+    border-radius:20px;
+    overflow:hidden;
+    position:relative;
+    background:#111827;
+}
+.soc-fill {
+    position:absolute; bottom:0; width:100%;
+    background:linear-gradient(to top,#00ff88,#00ffff);
+    transition:1s ease;
+}
+.soc-text { margin-top:15px; font-size:26px; font-weight:bold; color:#00ffff; }
+
+.grid-wrap { flex:1; }
+.grid {
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(140px,1fr));
+    gap:15px;
+}
+.cell {
+    background:rgba(255,255,255,0.05);
+    border-radius:18px;
+    padding:15px;
+    transition:0.3s;
+}
+.cell:hover { transform:translateY(-4px); }
+.live-dot {
+    width:10px; height:10px;
+    border-radius:50%;
+    background:#00ff88;
+    box-shadow:0 0 10px #00ff88;
+    animation:pulse 1s infinite;
+}
+@keyframes pulse { 0%{opacity:0.5;} 50%{opacity:1;} 100%{opacity:0.5;} }
+
+.voltage { font-size:24px; font-weight:bold; margin-top:15px; }
+.current { margin-top:8px; color:#00ffff; }
+.bar { height:12px; background:#111827; border-radius:20px; margin-top:12px; overflow:hidden; }
+.fill { height:100%; transition:1s; }
+
+.param-card, .chart-card {
+    margin-top:25px;
+    background:rgba(255,255,255,0.05);
+    padding:20px;
+    border-radius:20px;
+}
+table { width:100%; border-collapse:collapse; min-width:900px; }
+th { background:rgba(0,255,255,0.12); color:#00ffff; padding:14px; }
+td { padding:12px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); }
+
+#settingsPanel, #devicePanel {
+    position:fixed; top:0; width:380px; height:100%;
+    background:#08111f; padding:25px;
+    transition:0.4s; overflow:auto; z-index:99999;
+}
+#settingsPanel { right:-420px; }
+#devicePanel { left:-420px; }
+
+.panel-input, .panel-select {
+    width:100%; padding:12px; margin-bottom:15px;
+    border:none; border-radius:12px;
+    background:#0f172a; color:white;
+}
+
+.login-screen {
+    position:fixed; inset:0; background:#020617;
+    display:flex; align-items:center; justify-content:center;
+    z-index:999999;
+}
+.login-box {
+    width:100%; max-width:420px; padding:35px;
+    border-radius:25px;
+    background:rgba(255,255,255,0.05);
+    backdrop-filter:blur(15px);
+}
+
+@media(max-width:768px) {
+    .main { flex-direction:column; }
+    .soc-card { width:100%; }
+}
+</style>
+</head>
+<body>
+
+<div id="authScreen" class="login-screen">
+    <div class="login-box">
+        <h1 style="text-align:center;color:#00ffff;margin-bottom:25px;">⚡ EV BMS LOGIN</h1>
+        <input id="email" type="email" placeholder="Email" class="panel-input">
+        <input id="password" type="password" placeholder="Password" class="panel-input">
+        <button onclick="login()" class="btn settings-btn" style="width:100%;margin-bottom:10px;">LOGIN</button>
+        <button onclick="signup()" class="btn devices-btn" style="width:100%;margin-bottom:10px;">SIGN UP</button>
+        <button onclick="googleLogin()" class="btn" style="width:100%;background:white;color:black;margin-bottom:10px;">Continue with Google</button>
+        <button onclick="forgotPassword()" class="btn" style="width:100%;background:#f59e0b;color:black;">Forgot Password</button>
+        <div id="authMsg" style="margin-top:15px;text-align:center;color:#94a3b8;"></div>
+    </div>
+</div>
+
+<div class="header">
+    <h1>⚡ EV SMART BMS DASHBOARD</h1>
+    <div class="top-buttons">
+        <button onclick="openSettings()" class="btn settings-btn">⚙ SETTINGS</button>
+        <button onclick="openDevices()" class="btn devices-btn">📡 DEVICES</button>
+    </div>
+</div>
+
+<div class="cards">
+    <div class="card"><div class="card-title">PACK VOLTAGE</div><div class="card-value"><span id="pack">0.00</span> V</div></div>
+    <div class="card"><div class="card-title">CURRENT</div><div class="card-value"><span id="current">0.00</span> A</div></div>
+    <div class="card"><div class="card-title">STATUS</div><div class="card-value" id="mode">IDLE</div></div>
+</div>
+
+<div class="main">
+    <div class="soc-card">
+        <div class="soc-battery"><div id="socFill" class="soc-fill" style="height:0%"></div></div>
+        <div class="soc-text"><span id="socText">0</span>%</div>
+    </div>
+    <div class="grid-wrap"><div class="grid" id="grid"></div></div>
+</div>
+
+<div class="param-card">
+    <h2 style="color:#00ffff;margin-bottom:20px;">⚡ 16 CELL PARAMETERS</h2>
+    <table><thead><tr><th>CELL</th><th>VOLTAGE</th><th>CURRENT</th><th>STATUS</th><th>TEMP</th></tr></thead>
+    <tbody id="paramBody"></tbody></table>
+</div>
+
+<div class="chart-card">
+    <canvas id="chart" height="350"></canvas>
+</div>
+
+<!-- Settings Panel - Updated with High/Low Current Cutoff -->
+<div id="settingsPanel">
+    <h2 style="color:#00ffff;margin-bottom:20px;">⚙ Battery Protection Settings</h2>
+    
+    <select id="batteryType" onchange="updateBatterySetup()" class="panel-select">
+        <option value="4">4S Battery</option>
+        <option value="8">8S Battery</option>
+        <option value="16" selected>16S Battery</option>
+    </select>
+
+    <label style="color:#94a3b8;font-size:14px;">Nominal Max Voltage (V)</label>
+    <input id="maxVoltage" type="number" step="0.1" value="58.4" class="panel-input">
+
+    <label style="color:#94a3b8;font-size:14px;">High Voltage Cutoff (V)</label>
+    <input id="highCutoff" type="number" step="0.1" value="59.0" class="panel-input">
+
+    <label style="color:#94a3b8;font-size:14px;">Low Voltage Cutoff (V)</label>
+    <input id="lowCutoff" type="number" step="0.1" value="44.0" class="panel-input">
+
+    <label style="color:#94a3b8;font-size:14px;">High Current Cutoff (A) - Charge</label>
+    <input id="highCurrentCutoff" type="number" step="0.1" value="25" class="panel-input">
+
+    <label style="color:#94a3b8;font-size:14px;">Low Current Cutoff (A) - Discharge</label>
+    <input id="lowCurrentCutoff" type="number" step="0.1" value="-25" class="panel-input">
+
+    <button onclick="saveBatterySettings()" class="btn devices-btn" style="width:100%;margin:15px 0;">💾 SAVE SETTINGS</button>
+    <button onclick="closeSettings()" class="btn" style="width:100%;background:red;color:white;">CLOSE</button>
+</div>
+
+<!-- Device Panel -->
+<div id="devicePanel">
+    <h2 style="color:#00ff88;margin-bottom:20px;">📡 ESP8266 Devices</h2>
+    <input id="deviceName" placeholder="Customer Name" class="panel-input">
+    <input id="deviceId" placeholder="ESP8266 Device ID" class="panel-input">
+    <select id="deviceBattery" class="panel-select">
+        <option>4S</option>
+        <option>8S</option>
+        <option selected>16S</option>
+    </select>
+    <button onclick="addDevice()" class="btn settings-btn" style="width:100%;margin-bottom:15px;">➕ ADD DEVICE</button>
+    <div id="deviceList"></div>
+    <button onclick="closeDevices()" class="btn" style="width:100%;background:red;color:white;margin-top:20px;">CLOSE</button>
+</div>
+
+<script>
+// Firebase Configuration
+const firebaseConfig = {
+  apiKey: "AIzaSyDEzK5wtrQNdYZj9e_eeLZsuckaXTw5qn0",
+  authDomain: "battery-monitoring-app-2329b.firebaseapp.com",
+  databaseURL: "https://battery-monitoring-app-2329b-default-rtdb.europe-west1.firebasedatabase.app",
+  projectId: "battery-monitoring-app-2329b",
+  storageBucket: "battery-monitoring-app-2329b.firebasestorage.app",
+  messagingSenderId: "427921404069",
+  appId: "1:427921404069:web:468af2b24b96cc7d34dd4c"
+};
+
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const ref = firebase.database().ref('batteries/BAT001/live');
+const controlRef = firebase.database().ref('batteries/BAT001/control');
+const database = firebase.database();
+
+// Chart Setup
+let labels = [];
+let datasets = Array.from({length:16}, () => []);
+const chart = new Chart(document.getElementById('chart'), {
+    type: 'line',
+    data: {
+        labels: labels,
+        datasets: Array.from({length:16}, (_, i) => ({
+            label: `CELL ${i+1}`,
+            data: datasets[i],
+            borderColor: `hsl(${i*22}, 100%, 65%)`,
+            borderWidth: 2.5,
+            tension: 0.4,
+            fill: false
+        }))
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: { y: { min: 2.5, max: 4.5 } }
+    }
+});
+
+// Auth Functions
+function login() {
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    if (!email || !password) return showMsg("Please enter email and password");
+    auth.signInWithEmailAndPassword(email, password)
+        .then(() => showMsg("Login Successful"))
+        .catch(e => showMsg(e.message));
+}
+
+function signup() {
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    if (!email || !password) return showMsg("Please enter email and password");
+    auth.createUserWithEmailAndPassword(email, password)
+        .then(() => showMsg("Signup Successful"))
+        .catch(e => showMsg(e.message));
+}
+
+function googleLogin() {
+    const provider = new firebase.auth.GoogleAuthProvider();
+    auth.signInWithPopup(provider)
+        .then(() => showMsg("Google Login Successful"))
+        .catch(e => showMsg(e.message));
+}
+
+function forgotPassword() {
+    const email = document.getElementById('email').value.trim();
+    if (!email) return showMsg("Please enter your email");
+    auth.sendPasswordResetEmail(email)
+        .then(() => showMsg("Password Reset Email Sent"))
+        .catch(e => showMsg(e.message));
+}
+
+function showMsg(msg) {
+    document.getElementById('authMsg').innerText = msg;
+}
+
+auth.onAuthStateChanged(user => {
+    document.getElementById('authScreen').style.display = user ? 'none' : 'flex';
+});
+
+// Panel Controls
+function openSettings(){ document.getElementById('settingsPanel').style.right = '0'; }
+function closeSettings(){ document.getElementById('settingsPanel').style.right = '-420px'; }
+function openDevices(){ document.getElementById('devicePanel').style.left = '0'; }
+function closeDevices(){ document.getElementById('devicePanel').style.left = '-420px'; }
+
+// Battery Setup with New Current Cutoffs
+function updateBatterySetup(){
+    const type = Number(document.getElementById('batteryType').value);
+    if(type===4){
+        document.getElementById('maxVoltage').value = 14.6;
+        document.getElementById('highCutoff').value = 15.0;
+        document.getElementById('lowCutoff').value = 10.0;
+        document.getElementById('highCurrentCutoff').value = 15;
+        document.getElementById('lowCurrentCutoff').value = -15;
+    } else if(type===8){
+        document.getElementById('maxVoltage').value = 29.2;
+        document.getElementById('highCutoff').value = 30.0;
+        document.getElementById('lowCutoff').value = 20.0;
+        document.getElementById('highCurrentCutoff').value = 20;
+        document.getElementById('lowCurrentCutoff').value = -20;
+    } else if(type===16){
+        document.getElementById('maxVoltage').value = 58.4;
+        document.getElementById('highCutoff').value = 59.0;
+        document.getElementById('lowCutoff').value = 44.0;
+        document.getElementById('highCurrentCutoff').value = 25;
+        document.getElementById('lowCurrentCutoff').value = -25;
+    }
+}
+
+// ==================== SAVE SETTINGS TO FIREBASE (FOR NODEMCU) ====================
+function saveBatterySettings(){
+    const settings = {
+        maxVoltage: parseFloat(document.getElementById('maxVoltage').value) || 58.4,
+        highCutoff: parseFloat(document.getElementById('highCutoff').value) || 59.0,
+        lowCutoff: parseFloat(document.getElementById('lowCutoff').value) || 44.0,
+        highCurrentCutoff: parseFloat(document.getElementById('highCurrentCutoff').value) || 25,
+        lowCurrentCutoff: parseFloat(document.getElementById('lowCurrentCutoff').value) || -25
+    };
+
+    // Change this if you use different device IDs
+    let currentDeviceID = "BAT001";   
+
+    firebase.database().ref('batteries/' + currentDeviceID + '/settings').set(settings)
+    .then(() => {
+        alert('✅ Settings Sent to NodeMCU Successfully!');
+    })
+    .catch((error) => {
+        alert('❌ Failed to send settings: ' + error.message);
+    });
+}
+// Device Management
+function addDevice(){
+    const customer = document.getElementById('deviceName').value.trim();
+    const deviceId = document.getElementById('deviceId').value.trim();
+    const battery = document.getElementById('deviceBattery').value;
+    if(!customer || !deviceId) return alert('Please enter Customer Name and Device ID');
+
+    let devices = JSON.parse(localStorage.getItem('devices') || '[]');
+    devices.push({ customer, deviceId, battery, status: 'ONLINE' });
+    localStorage.setItem('devices', JSON.stringify(devices));
+    renderDevices();
+}
+function renderDevices(){
+    const devices = JSON.parse(localStorage.getItem('devices') || '[]');
+    let html = '';
+    devices.forEach((d, index) => {
+        html += `
+        <div style="background:rgba(255,255,255,0.05);padding:15px;border-radius:15px;margin-bottom:15px;">
+            <div style="color:#00ffff;font-weight:bold;margin-bottom:8px;">👤 ${d.customer}</div>
+            <div>📡 ${d.deviceId}</div>
+            <div>🔋 ${d.battery}</div>
+            <div style="color:#00ff88;margin:10px 0;">🟢 ${d.status}</div>
+            <button onclick="deleteDevice(${index})" style="width:100%;padding:10px;border:none;border-radius:10px;background:red;color:white;cursor:pointer;">DELETE</button>
+        </div>`;
+    });
+    document.getElementById('deviceList').innerHTML = html;
+}
+function deleteDevice(index){
+    let devices = JSON.parse(localStorage.getItem('devices') || '[]');
+    devices.splice(index, 1);
+    localStorage.setItem('devices', JSON.stringify(devices));
+    renderDevices();
+}
+
+// ==================== UPDATED DASHBOARD UI FUNCTION ====================
+function updateDashboardUI(d) {
+    if (!d) {
+        // === NO DATA / NOT CONNECTED ===
+        document.getElementById('pack').innerText = "0.00";
+        document.getElementById('current').innerText = "0.00";
+        document.getElementById('mode').innerText = "OFFLINE";
+        document.getElementById('socText').innerText = "0";
+        document.getElementById('socFill').style.height = "0%";
+
+        // Clear all cells
+        let gridHTML = '';
+        let tableHTML = '';
+        for(let i = 1; i <= 16; i++){
+            gridHTML += `
+            <div class="cell">
+                <div class="cell-top"><div>CELL ${i}</div><div class="live-dot" style="background:#666;"></div></div>
+                <div class="voltage" style="color:#666">0.000V</div>
+                <div class="current">⚡ 0.00 A</div>
+                <div class="bar"><div class="fill" style="width:0%;background:#666"></div></div>
+            </div>`;
+
+            tableHTML += `
+            <tr>
+                <td>CELL ${i}</td>
+                <td>0.000 V</td>
+                <td>0.00 A</td>
+                <td>OFFLINE</td>
+                <td>0.0 °C</td>
+            </tr>`;
+        }
+
+        document.getElementById('grid').innerHTML = gridHTML;
+        document.getElementById('paramBody').innerHTML = tableHTML;
+
+        // Clear Chart
+        labels = [];
+        datasets.forEach(arr => arr.length = 0);
+        if(chart) chart.update();
+        
+        return;
+    }
+
+    // === DATA RECEIVED (Connected) ===
+    const pack = Number(d.pack || 0);
+    const current = Number(d.current || 0);
+
+    document.getElementById('pack').innerText = pack.toFixed(2);
+    document.getElementById('current').innerText = current.toFixed(2);
+
+    let mode = 'IDLE';
+    if (current > 0.5) mode = '⚡ CHARGING';
+    if (current < -0.5) mode = '🔋 DISCHARGING';
+    document.getElementById('mode').innerText = mode;
+
+    const cellValues = Object.values(d.cells || {}).map(Number);
+    const avgVoltage = cellValues.length ? cellValues.reduce((a,b) => a + b, 0) / cellValues.length : 0;
+    let soc = avgVoltage > 0 ? ((avgVoltage - 3.0) / 1.2) * 100 : 0;
+    soc = Math.max(0, Math.min(100, soc));
+
+    document.getElementById('socText').innerText = soc.toFixed(1);
+    document.getElementById('socFill').style.height = soc + '%';
+
+    let gridHTML = '';
+    let tableHTML = '';
+
+    for(let i = 1; i <= 16; i++){
+        const v = Number(d.cells?.[i] || 0);
+        const percent = v > 0 ? Math.min(100, (v / 4.2) * 100) : 0;
+        let glow = v < 3.1 ? 'red' : (v > 4.15 ? 'orange' : 'lime');
+        let status = v < 3.1 ? 'LOW' : (v > 4.15 ? 'HIGH' : 'GOOD');
+
+        const cellCurrent = pack > 0 ? (v * current / pack) : 0;
+        const temp = v > 0 ? (27 + Math.random() * 15).toFixed(1) : "0.0";
+
+        gridHTML += `
+        <div class="cell">
+            <div class="cell-top"><div>CELL ${i}</div><div class="live-dot"></div></div>
+            <div class="voltage" style="color:${glow}">${v.toFixed(3)}V</div>
+            <div class="current">⚡ ${cellCurrent.toFixed(2)} A</div>
+            <div class="bar"><div class="fill" style="width:${percent}%;background:${glow}"></div></div>
+        </div>`;
+
+        tableHTML += `
+        <tr>
+            <td>CELL ${i}</td>
+            <td>${v.toFixed(3)} V</td>
+            <td>${cellCurrent.toFixed(2)} A</td>
+            <td>${status}</td>
+            <td>${temp} °C</td>
+        </tr>`;
+
+        datasets[i-1].push(v);
+        if(datasets[i-1].length > 50) datasets[i-1].shift();
+    }
+
+    document.getElementById('grid').innerHTML = gridHTML;
+    document.getElementById('paramBody').innerHTML = tableHTML;
+
+    labels.push(new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
+    if(labels.length > 50) labels.shift();
+    chart.update();
+}
+// Safety Engine with High & Low Current Cutoff
+function safetyEngine(d){
+    const pack = Number(d.pack || 0);
+    const current = Number(d.current || 0);
+    const cells = d.cells || {};
+
+    let maxCell = 0, minCell = 5;
+    let balanceList = [];
+    for(let i=1; i<=16; i++){
+        const v = Number(cells[i] || 0);
+        if(v > maxCell) maxCell = v;
+        if(v < minCell) minCell = v;
+        if(v > 4.10) balanceList.push(i);
+    }
+
+    const settings = JSON.parse(localStorage.getItem('batterySettings')) || {
+        highCutoff: 59.0,
+        lowCutoff: 44.0,
+        highCurrentCutoff: 25,
+        lowCurrentCutoff: -25
+    };
+
+    let relay = true, alarm = false, sms = false, status = "OK";
+
+    if(pack > settings.highCutoff){
+        relay = false; alarm = true; sms = true; status = "OVER VOLTAGE CUTOFF";
+    } 
+    else if(pack < settings.lowCutoff){
+        relay = false; alarm = true; sms = true; status = "UNDER VOLTAGE CUTOFF";
+    } 
+    else if(current > settings.highCurrentCutoff){
+        relay = false; alarm = true; sms = true; status = "OVER CURRENT (CHARGING) CUTOFF";
+    } 
+    else if(current < settings.lowCurrentCutoff){
+        relay = false; alarm = true; sms = true; status = "OVER CURRENT (DISCHARGING) CUTOFF";
+    } 
+    else if((maxCell - minCell) > 0.35){
+        alarm = true; status = "CELL IMBALANCE";
+    }
+
+    controlRef.update({
+        relay, alarm, sms, status,
+        balanceCells: balanceList,
+        soh: Math.max(40, Math.min(100, 100 - ((maxCell - minCell) * 25)))
+    });
+}
+
+// ==================== IMPROVED FIREBASE LISTENER ====================
+let lastDataTime = 0;
+
+ref.on('value', snap => {
+    const d = snap.val();
+    lastDataTime = Date.now();
+
+    if (d) {
+        updateDashboardUI(d);
+        safetyEngine(d);
+    } else {
+        updateDashboardUI(null);
+    }
+});
+
+// Optional: Timeout detection (if data stops coming)
+setInterval(() => {
+    if (Date.now() - lastDataTime > 8000) {   // No data for 8 seconds
+        updateDashboardUI(null);
+    }
+}, 3000);
+
+// Initialize
+window.onload = () => {
+    renderDevices();
+
+    const saved = JSON.parse(localStorage.getItem('batterySettings'));
+    if(saved){
+        document.getElementById('batteryType').value = saved.batteryType || '16';
+        document.getElementById('maxVoltage').value = saved.maxVoltage || 58.4;
+        document.getElementById('highCutoff').value = saved.highCutoff || 59.0;
+        document.getElementById('lowCutoff').value = saved.lowCutoff || 44.0;
+        document.getElementById('highCurrentCutoff').value = saved.highCurrentCutoff || 25;
+        document.getElementById('lowCurrentCutoff').value = saved.lowCurrentCutoff || -25;
+    }
+
+    // Demo Data
+    ref.once('value').then(snap => {
+        if(!snap.exists()){
+            let demoCells = {};
+            for(let i=1; i<=16; i++) demoCells[i] = (3.35 + Math.random()*0.45).toFixed(3);
+            ref.set({ pack: 53.6, current: 5.2, cells: demoCells });
+        }
+    });
+};
+</script>
+</body>
+</html>
