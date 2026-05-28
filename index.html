@@ -272,7 +272,7 @@ const chart = new Chart(document.getElementById('chart'), {
     }
 });
 
-// Auth Functions with Visible Screen Diagnostics
+// Auth Functions
 function login() {
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
@@ -308,7 +308,7 @@ function showMsg(msg, color = "#ff4444") {
     box.style.display = 'block';
     box.style.color = color;
     box.style.borderColor = color;
-    box.style.background = color + "1A"; // 10% opacity color background
+    box.style.background = color + "1A";
 }
 
 auth.onAuthStateChanged(user => {
@@ -331,6 +331,7 @@ function updateBatterySetup(){
     document.getElementById('cellTitle').innerText = `⚡ ${totalCells} CELL PARAMETERS`;
     
     rebuildChart();
+    updateDashboardUI(null); // Instantly re-render dashboard cells with new layout framework
 }
 
 function rebuildChart(){
@@ -434,6 +435,7 @@ function selectDevice(deviceId, battery){
     document.getElementById('cellTitle').innerText = `⚡ ${totalCells} CELL PARAMETERS`;
 
     rebuildChart();
+    updateDashboardUI(null); // Instantly draw offline visual shell for new dynamic size
 
     if(ref && liveListener) ref.off('value', liveListener);
 
