@@ -663,6 +663,8 @@ function loadBatteryOptions(){
 }
 // ==================== UPDATED DASHBOARD UI FUNCTION ====================
 function updateDashboardUI(d) {
+    let gridHTML = '';
+    let tableHTML = '';
 
     // ================= OFFLINE STATE =================
     if (!d) {
@@ -672,9 +674,7 @@ function updateDashboardUI(d) {
         document.getElementById('socText').innerText = "0";
         document.getElementById('socFill').style.height = "0%";
 
-        let gridHTML = '';
-        let tableHTML = '';
-
+        
         for (let i = 1; i <= totalCells; i++) {
             gridHTML += `
             <div class="cell">
@@ -884,28 +884,30 @@ if(devices.length > 0){
             saved.lowCurrentCutoff || -100;
     }
 
-    // Create demo data
+   // Create demo data
+if (ref && typeof ref.once === "function") {
     ref.once('value').then(snap => {
 
-        if(!snap.exists()){
+        if (!snap.exists()) {
 
             let demoCells = {};
 
-            for(let i=1; i<=totalCells; i++){
-
-                demoCells[i] =
-                    (3.35 + Math.random()*0.45)
-                    .toFixed(3);
+            for (let i = 1; i <= totalCells; i++) {
+                demoCells[i] = (3.35 + Math.random() * 0.45).toFixed(3);
             }
 
             ref.set({
-               pack: Number((totalCells * 3.35).toFixed(2)),
+                pack: Number((totalCells * 3.35).toFixed(2)),
                 current: 5.2,
                 cells: demoCells
             });
+
         }
+
+    }).catch(err => {
+        console.error("Firebase read error:", err);
     });
-};
+}
 </script>
 </body>
 </html>
