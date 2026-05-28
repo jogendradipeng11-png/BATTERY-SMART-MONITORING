@@ -113,8 +113,9 @@ body {
     background:rgba(255,255,255,0.05);
     padding:20px;
     border-radius:20px;
+    overflow-x:auto;
 }
-table { width:100%; border-collapse:collapse; min-width:900px; }
+table { width:100%; border-collapse:collapse; min-width:800px; }
 th { background:rgba(0,255,255,0.12); color:#00ffff; padding:14px; }
 td { padding:12px; text-align:center; border-bottom:1px solid rgba(255,255,255,0.06); }
 
@@ -188,31 +189,24 @@ td { padding:12px; text-align:center; border-bottom:1px solid rgba(255,255,255,0
 </div>
 
 <div class="param-card">
-    <h2 id="cellTitle" style="color:#00ffff;margin-bottom:20px;">
-⚡ 16 CELL PARAMETERS
-</h2>
-    <table><thead><tr><th>CELL</th><th>VOLTAGE</th><th>CURRENT</th><th>STATUS</th><th>TEMP</th></tr></thead>
-    <tbody id="paramBody"></tbody></table>
+    <h2 id="cellTitle" style="color:#00ffff;margin-bottom:20px;">⚡ 16 CELL PARAMETERS</h2>
+    <table>
+        <thead><tr><th>CELL</th><th>VOLTAGE</th><th>CURRENT</th><th>STATUS</th><th>TEMP</th></tr></thead>
+        <tbody id="paramBody"></tbody>
+    </table>
 </div>
 
 <div class="chart-card">
-    <canvas id="chart" height="350"></canvas>
+    <div style="height: 350px; position: relative; width: 100%;">
+        <canvas id="chart"></canvas>
+    </div>
 </div>
 
-<!-- Settings Panel - Updated with High/Low Current Cutoff -->
 <div id="settingsPanel">
     <h2 style="color:#00ffff;margin-bottom:20px;">⚙ Battery Protection Settings</h2>
     
     <label style="color:#94a3b8;font-size:14px;">Battery Series Count</label>
-
-<input 
-    id="batteryType" 
-    type="number" 
-    min="1" 
-    max="32"
-    value="16"
-    onchange="updateBatterySetup()" 
-    class="panel-input">
+    <input id="batteryType" type="number" min="1" max="32" value="16" onchange="updateBatterySetup()" class="panel-input">
 
     <label style="color:#94a3b8;font-size:14px;">Nominal Max Voltage (V)</label>
     <input id="maxVoltage" type="number" step="0.1" value="58.4" class="panel-input">
@@ -233,13 +227,11 @@ td { padding:12px; text-align:center; border-bottom:1px solid rgba(255,255,255,0
     <button onclick="closeSettings()" class="btn" style="width:100%;background:red;color:white;">CLOSE</button>
 </div>
 
-<!-- Device Panel -->
 <div id="devicePanel">
     <h2 style="color:#00ff88;margin-bottom:20px;">📡 ESP8266 Devices</h2>
     <input id="deviceName" placeholder="Customer Name" class="panel-input">
     <input id="deviceId" placeholder="ESP8266 Device ID" class="panel-input">
-   <select id="deviceBattery" class="panel-select">
-</select>
+    <select id="deviceBattery" class="panel-select"></select>
     <button onclick="addDevice()" class="btn settings-btn" style="width:100%;margin-bottom:15px;">➕ ADD DEVICE</button>
     <div id="deviceList"></div>
     <button onclick="closeDevices()" class="btn" style="width:100%;background:red;color:white;margin-top:20px;">CLOSE</button>
@@ -261,37 +253,22 @@ firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 let currentDeviceID = "BAT001";
 
-let ref = firebase.database().ref(
-    'batteries/' + currentDeviceID + '/live'
-);
-
-let controlRef = firebase.database().ref(
-    'batteries/' + currentDeviceID + '/control'
-);
+let ref = firebase.database().ref('batteries/' + currentDeviceID + '/live');
+let controlRef = firebase.database().ref('batteries/' + currentDeviceID + '/control');
 const database = firebase.database();
 
-// Chart Setup
 let totalCells = 16;
-
 let labels = [];
-let datasets = Array.from({length: totalCells}, () => []);
+let datasets = [];
+
+// Initialize Chart safely
 const chart = new Chart(document.getElementById('chart'), {
     type: 'line',
-    data: {
-        labels: labels,
-        datasets: Array.from({length: totalCells}, (_, i) => ({
-            label: `CELL ${i+1}`,
-            data: datasets[i],
-            borderColor: `hsl(${i*22}, 100%, 65%)`,
-            borderWidth: 2.5,
-            tension: 0.4,
-            fill: false
-        }))
-    },
+    data: { labels: labels, datasets: [] },
     options: {
         responsive: true,
         maintainAspectRatio: false,
-        scales: { y: { min: 2.5, max: 4.5 } }
+        scales: { y: { min: 2.0, max: 4.5 } }
     }
 });
 
@@ -300,98 +277,64 @@ function login() {
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
     if (!email || !password) return showMsg("Please enter email and password");
-    auth.signInWithEmailAndPassword(email, password)
-        .then(() => showMsg("Login Successful"))
-        .catch(e => showMsg(e.message));
+    auth.signInWithEmailAndPassword(email, password).then(() => showMsg("Login Successful")).catch(e => showMsg(e.message));
 }
-
 function signup() {
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
     if (!email || !password) return showMsg("Please enter email and password");
-    auth.createUserWithEmailAndPassword(email, password)
-        .then(() => showMsg("Signup Successful"))
-        .catch(e => showMsg(e.message));
+    auth.createUserWithEmailAndPassword(email, password).then(() => showMsg("Signup Successful")).catch(e => showMsg(e.message));
 }
-
 function googleLogin() {
     const provider = new firebase.auth.GoogleAuthProvider();
-    auth.signInWithPopup(provider)
-        .then(() => showMsg("Google Login Successful"))
-        .catch(e => showMsg(e.message));
+    auth.signInWithPopup(provider).then(() => showMsg("Google Login Successful")).catch(e => showMsg(e.message));
 }
-
 function forgotPassword() {
     const email = document.getElementById('email').value.trim();
     if (!email) return showMsg("Please enter your email");
-    auth.sendPasswordResetEmail(email)
-        .then(() => showMsg("Password Reset Email Sent"))
-        .catch(e => showMsg(e.message));
+    auth.sendPasswordResetEmail(email).then(() => showMsg("Password Reset Email Sent")).catch(e => showMsg(e.message));
 }
-
-function showMsg(msg) {
-    document.getElementById('authMsg').innerText = msg;
-}
+function showMsg(msg) { document.getElementById('authMsg').innerText = msg; }
 
 auth.onAuthStateChanged(user => {
     document.getElementById('authScreen').style.display = user ? 'none' : 'flex';
 });
 
-// Panel Controls
+// Window Panel Controls
 function openSettings(){ document.getElementById('settingsPanel').style.right = '0'; }
 function closeSettings(){ document.getElementById('settingsPanel').style.right = '-420px'; }
 function openDevices(){ document.getElementById('devicePanel').style.left = '0'; }
 function closeDevices(){ document.getElementById('devicePanel').style.left = '-420px'; }
 
-// Battery Setup with New Current Cutoffs
 function updateBatterySetup(){
-
     totalCells = Number(document.getElementById('batteryType').value);
+    let maxVoltage = totalCells * 3.65; // LiFePO4 Default Calculation
 
-    // LiFePO4 calculation
-    let maxVoltage = totalCells * 3.65;
-
-    document.getElementById('maxVoltage').value =
-        maxVoltage.toFixed(1);
-
-    document.getElementById('highCutoff').value =
-        (maxVoltage + 0.4).toFixed(1);
-
-    document.getElementById('lowCutoff').value =
-        (totalCells * 2.8).toFixed(1);
-
-document.getElementById('cellTitle').innerText =
-    `⚡ ${totalCells} CELL PARAMETERS`;
-
-rebuildChart();
+    document.getElementById('maxVoltage').value = maxVoltage.toFixed(1);
+    document.getElementById('highCutoff').value = (maxVoltage + 0.4).toFixed(1);
+    document.getElementById('lowCutoff').value = (totalCells * 2.8).toFixed(1);
+    document.getElementById('cellTitle').innerText = `⚡ ${totalCells} CELL PARAMETERS`;
+    
+    rebuildChart();
 }
+
 function rebuildChart(){
-
-    labels = [];
+    labels.length = 0;
+    datasets = Array.from({length: totalCells}, () => []);
+    
     chart.data.labels = labels;
-
-    datasets = Array.from(
-        {length: totalCells},
-        () => []
-    );
-
-    chart.data.datasets = Array.from(
-        {length: totalCells},
-        (_, i) => ({
-            label: `CELL ${i+1}`,
-            data: datasets[i],
-            borderColor: `hsl(${i*22}, 100%, 65%)`,
-            borderWidth: 2.5,
-            tension: 0.4,
-            fill: false
-        })
-    );
-
+    chart.data.datasets = Array.from({length: totalCells}, (_, i) => ({
+        label: `CELL ${i+1}`,
+        data: datasets[i],
+        borderColor: `hsl(${(i * 360 / totalCells)}, 100%, 65%)`,
+        borderWidth: 2,
+        tension: 0.3,
+        fill: false
+    }));
     chart.update();
 }
-// ==================== SAVE SETTINGS TO FIREBASE (FOR NODEMCU) ====================
-function saveBatterySettings(){
 
+function saveBatterySettings(){
     const settings = {
         batterySeries: totalCells,
         maxVoltage: parseFloat(document.getElementById('maxVoltage').value) || 58.4,
@@ -401,137 +344,47 @@ function saveBatterySettings(){
         lowCurrentCutoff: parseFloat(document.getElementById('lowCurrentCutoff').value) || -25
     };
 
-    localStorage.setItem(
-        'batterySettings',
-        JSON.stringify(settings)
-    );
-
-    firebase.database()
-    .ref('batteries/' + currentDeviceID + '/settings')
-    .set(settings)
-
-    .then(() => {
-
-        alert('✅ Settings Sent Successfully');
-
-    })
-
-    .catch((error) => {
-
-        alert('❌ Failed: ' + error.message);
-
-    });
+    localStorage.setItem('batterySettings', JSON.stringify(settings));
+    firebase.database().ref('batteries/' + currentDeviceID + '/settings').set(settings)
+    .then(() => alert('✅ Settings Sent Successfully'))
+    .catch(error => alert('❌ Failed: ' + error.message));
 }
-// Device Management
+
 function addDevice(){
+    const customer = document.getElementById('deviceName').value.trim();
+    const deviceId = document.getElementById('deviceId').value.trim();
+    const battery = document.getElementById('deviceBattery').value;
 
-    const customer =
-        document.getElementById('deviceName').value.trim();
+    if(!customer || !deviceId) return alert('Please enter Customer Name and Device ID');
 
-    const deviceId =
-        document.getElementById('deviceId').value.trim();
+    let devices = JSON.parse(localStorage.getItem('devices') || '[]');
+    if(devices.find(d => d.deviceId === deviceId)) return alert('Device ID already exists');
 
-    const battery =
-        document.getElementById('deviceBattery').value;
+    devices.push({ customer, deviceId, battery, status: 'ONLINE' });
+    localStorage.setItem('devices', JSON.stringify(devices));
 
-    if(!customer || !deviceId){
-
-        return alert(
-            'Please enter Customer Name and Device ID'
-        );
-    }
-
-    let devices = JSON.parse(
-        localStorage.getItem('devices') || '[]'
-    );
-
-    // Prevent duplicate device IDs
-    const exists = devices.find(
-        d => d.deviceId === deviceId
-    );
-
-    if(exists){
-
-        return alert('Device ID already exists');
-    }
-
-    // Add device locally
-    devices.push({
-        customer,
-        deviceId,
-        battery,
-        status: 'ONLINE'
-    });
-
-    localStorage.setItem(
-        'devices',
-        JSON.stringify(devices)
-    );
-
-    // Create Firebase Structure
-    firebase.database()
-    .ref('batteries/' + deviceId)
-    .set({
-
-        info:{
-            customer: customer,
-            battery: battery,
-            created: Date.now()
+    firebase.database().ref('batteries/' + deviceId).set({
+        info: { customer: customer, battery: battery, created: Date.now() },
+        settings: {
+            batterySeries: parseInt(battery),
+            maxVoltage: parseInt(battery) * 3.65,
+            highCutoff: (parseInt(battery) * 3.65) + 0.4,
+            lowCutoff: parseInt(battery) * 2.8,
+            highCurrentCutoff: 25,
+            lowCurrentCutoff: -25
         },
-
-        settings:{
-            batterySeries:
-                parseInt(battery),
-
-            maxVoltage:
-                parseInt(battery) * 3.65,
-
-            highCutoff:
-                (parseInt(battery) * 3.65) + 0.4,
-
-            lowCutoff:
-                parseInt(battery) * 2.8,
-
-            highCurrentCutoff: 100,
-
-            lowCurrentCutoff: -100
-        },
-
-        live:{
-            pack: 0,
-            current: 0,
-            cells: {}
-        },
-
-        control:{
-            relay: true,
-            alarm: false,
-            sms: false,
-            status: 'READY'
-        }
-
+        live: { pack: 0, current: 0, cells: {} },
+        control: { relay: true, alarm: false, sms: false, status: 'READY' }
     })
-
     .then(() => {
-
-        alert(
-            '✅ Device Added Successfully'
-        );
-
+        alert('✅ Device Added Successfully');
         renderDevices();
-
-        // Clear Inputs
         document.getElementById('deviceName').value = '';
         document.getElementById('deviceId').value = '';
     })
-
-    .catch(error => {
-
-        alert(
-            '❌ Firebase Error: ' + error.message
-        );
-    });
+    .catch(e => alert('❌ Firebase Error: ' + e.message));
 }
+
 function renderDevices(){
     const devices = JSON.parse(localStorage.getItem('devices') || '[]');
     let html = '';
@@ -539,174 +392,92 @@ function renderDevices(){
         html += `
         <div style="background:rgba(255,255,255,0.05);padding:15px;border-radius:15px;margin-bottom:15px;">
             <div style="color:#00ffff;font-weight:bold;margin-bottom:8px;">👤 ${d.customer}</div>
-            <div>📡 ${d.deviceId}</div>
-<div style="color:#00ff88;margin:10px 0;">
-🟢 ${d.status}
-</div>
-
-<button
-onclick="selectDevice('${d.deviceId}','${d.battery}')"
-style="
-width:100%;
-padding:10px;
-border:none;
-border-radius:10px;
-background:#00ffff;
-color:black;
-font-weight:bold;
-margin-bottom:10px;
-cursor:pointer;
-">
-CONNECT
-</button>
+            <div>📡 ${d.deviceId} (${d.battery}S)</div>
+            <div style="color:#00ff88;margin:10px 0;">🟢 ${d.status}</div>
+            <button onclick="selectDevice('${d.deviceId}','${d.battery}')" style="width:100%;padding:10px;border:none;border-radius:10px;background:#00ffff;color:black;font-weight:bold;margin-bottom:10px;cursor:pointer;">CONNECT</button>
             <button onclick="deleteDevice(${index})" style="width:100%;padding:10px;border:none;border-radius:10px;background:red;color:white;cursor:pointer;">DELETE</button>
         </div>`;
     });
-    document.getElementById('deviceList').innerHTML = html;
+    document.getElementById('deviceList').innerHTML = html || '<div style="color:#666">No devices added yet.</div>';
 }
+
 function deleteDevice(index){
-
-    let devices = JSON.parse(
-        localStorage.getItem('devices') || '[]'
-    );
-
+    let devices = JSON.parse(localStorage.getItem('devices') || '[]');
     devices.splice(index, 1);
-
-    localStorage.setItem(
-        'devices',
-        JSON.stringify(devices)
-    );
-
+    localStorage.setItem('devices', JSON.stringify(devices));
     renderDevices();
 }
-
-// ================= DEVICE SELECT =================
 
 let lastDataTime = 0;
 let liveListener = null;
 
 function selectDevice(deviceId, battery){
-
     currentDeviceID = deviceId;
-
     totalCells = parseInt(battery);
 
-    document.getElementById('batteryType').value =
-        totalCells;
-
-    document.getElementById('cellTitle').innerText =
-        `⚡ ${totalCells} CELL PARAMETERS`;
+    document.getElementById('batteryType').value = totalCells;
+    document.getElementById('cellTitle').innerText = `⚡ ${totalCells} CELL PARAMETERS`;
 
     rebuildChart();
 
-    // REMOVE OLD LISTENER
-    if(ref && liveListener){
+    if(ref && liveListener) ref.off('value', liveListener);
 
-        ref.off('value', liveListener);
-    }
+    ref = firebase.database().ref('batteries/' + currentDeviceID + '/live');
+    controlRef = firebase.database().ref('batteries/' + currentDeviceID + '/control');
 
-    // NEW FIREBASE REFERENCES
-    ref = firebase.database().ref(
-        'batteries/' + currentDeviceID + '/live'
-    );
-
-    controlRef = firebase.database().ref(
-        'batteries/' + currentDeviceID + '/control'
-    );
-
-    // NEW LISTENER
-    liveListener = snap => {
-
+    liveListener = ref.on('value', snap => {
         const d = snap.val();
-
         lastDataTime = Date.now();
-
-        if(d){
-
+        if(d) {
             updateDashboardUI(d);
-
             safetyEngine(d);
-
         } else {
-
-            if(document.getElementById('mode').innerText !== 'OFFLINE'){     updateDashboardUI(null); }
+            updateDashboardUI(null);
         }
-    };
-
-    // ATTACH LISTENER
-    ref.on('value', liveListener);
+    });
 
     closeDevices();
-
-    alert(
-        '✅ Connected to ' + currentDeviceID
-    );
+    alert('连接 ✅ Connected to ' + currentDeviceID);
 }
-
-
-// ================= LOAD BATTERY OPTIONS =================
 
 function loadBatteryOptions(){
-
     let html = '';
-
-    for(let i = 1; i <= 32; i++){
-
-        html += `
-        <option value="${i}" ${i===16 ? 'selected' : ''}>
-            ${i}S
-        </option>`;
+    for(let i = 1; i <= 32; i++) {
+        html += `<option value="${i}" ${i===16 ? 'selected' : ''}>${i}S</option>`;
     }
-
-    document.getElementById('deviceBattery').innerHTML =
-        html;
+    document.getElementById('deviceBattery').innerHTML = html;
 }
-// ==================== UPDATED DASHBOARD UI FUNCTION ====================
+
 function updateDashboardUI(d) {
     let gridHTML = '';
     let tableHTML = '';
 
-    // ================= OFFLINE STATE =================
     if (!d) {
         document.getElementById('pack').innerText = "0.00";
         document.getElementById('current').innerText = "0.00";
         document.getElementById('mode').innerText = "OFFLINE";
-        document.getElementById('socText').innerText = "0";
+        document.getElementById('socText').innerText = "0.0";
         document.getElementById('socFill').style.height = "0%";
 
-        
         for (let i = 1; i <= totalCells; i++) {
             gridHTML += `
             <div class="cell">
-                <div class="cell-top">
-                    <div>CELL ${i}</div>
-                    <div class="live-dot" style="background:#666;"></div>
-                </div>
+                <div class="cell-top"><div>CELL ${i}</div><div class="live-dot" style="background:#666;box-shadow:none;"></div></div>
                 <div class="voltage" style="color:#666">0.000V</div>
                 <div class="current">⚡ 0.00 A</div>
                 <div class="bar"><div class="fill" style="width:0%;background:#666"></div></div>
             </div>`;
-
-            tableHTML += `
-            <tr>
-                <td>CELL ${i}</td>
-                <td>0.000 V</td>
-                <td>0.00 A</td>
-                <td>OFFLINE</td>
-                <td>0.0 °C</td>
-            </tr>`;
+            tableHTML += `<tr><td>CELL ${i}</td><td>0.000 V</td><td>0.00 A</td><td>OFFLINE</td><td>0.0 °C</td></tr>`;
         }
-
         document.getElementById('grid').innerHTML = gridHTML;
         document.getElementById('paramBody').innerHTML = tableHTML;
-
-        labels = [];
+        
+        labels.length = 0;
         datasets.forEach(arr => arr.length = 0);
         chart.update();
         return;
     }
 
-    // ================= LIVE DATA =================
     const pack = Number(d.pack || 0);
     const current = Number(d.current || 0);
     const cells = d.cells || {};
@@ -715,72 +486,54 @@ function updateDashboardUI(d) {
     document.getElementById('current').innerText = current.toFixed(2);
 
     let mode = 'IDLE';
-    if (current > 0.5) mode = '⚡ CHARGING';
-    if (current < -0.5) mode = '🔋 DISCHARGING';
+    if (current > 0.1) mode = '⚡ CHARGING';
+    if (current < -0.1) mode = '🔋 DISCHARGING';
     document.getElementById('mode').innerText = mode;
 
-    // SOC calculation
-    const cellValues = Object.values(cells).map(Number);
-    const avg = cellValues.length ? cellValues.reduce((a,b)=>a+b,0)/cellValues.length : 0;
-    let soc = Math.max(0, Math.min(100, ((avg - 3.0) / 1.2) * 100));
-
-    document.getElementById('socText').innerText = soc.toFixed(1);
-    document.getElementById('socFill').style.height = soc + '%';
-
-    // ================= RENDER GRID =================
-    let gridHTML = '';
-    let tableHTML = '';
+    let totalVolts = 0;
+    let count = 0;
 
     for (let i = 1; i <= totalCells; i++) {
-
         const v = Number(cells[i] || 0);
-        const percent = v ? Math.min(100, (v / 4.2) * 100) : 0;
+        if(v > 0) { totalVolts += v; count++; }
 
-        let glow = v < 3.1 ? 'red' : (v > 4.15 ? 'orange' : 'lime');
-        let status = v < 3.1 ? 'LOW' : (v > 4.15 ? 'HIGH' : 'GOOD');
-
+        const percent = Math.min(100, Math.max(0, ((v - 2.5) / 1.15) * 100)); // Normalized scale for LiFePO4 (2.5V - 3.65V)
+        let glow = v < 2.8 ? '#ff3b30' : (v > 3.6 ? '#ffcc00' : '#00ff88');
+        let status = v < 2.8 ? 'LOW' : (v > 3.6 ? 'HIGH' : 'GOOD');
+        
         const cellCurrent = pack ? (v * current / pack) : 0;
-        const temp = v ? (27 + Math.random() * 15).toFixed(1) : "0.0";
+        const temp = v ? (28 + (i % 3) * 1.4).toFixed(1) : "0.0";
 
         gridHTML += `
         <div class="cell">
-            <div class="cell-top">
-                <div>CELL ${i}</div>
-                <div class="live-dot"></div>
-            </div>
+            <div class="cell-top"><div>CELL ${i}</div><div class="live-dot"></div></div>
             <div class="voltage" style="color:${glow}">${v.toFixed(3)}V</div>
             <div class="current">⚡ ${cellCurrent.toFixed(2)} A</div>
-            <div class="bar">
-                <div class="fill" style="width:${percent}%;background:${glow}"></div>
-            </div>
+            <div class="bar"><div class="fill" style="width:${percent}%;background:${glow}"></div></div>
         </div>`;
 
-        tableHTML += `
-        <tr>
-            <td>CELL ${i}</td>
-            <td>${v.toFixed(3)} V</td>
-            <td>${cellCurrent.toFixed(2)} A</td>
-            <td>${status}</td>
-            <td>${temp} °C</td>
-        </tr>`;
+        tableHTML += `<tr><td>CELL ${i}</td><td>${v.toFixed(3)} V</td><td>${cellCurrent.toFixed(2)} A</td><td>${status}</td><td>${temp} °C</td></tr>`;
 
-        // chart update
         if (datasets[i - 1]) {
             datasets[i - 1].push(v);
-            if (datasets[i - 1].length > 50) datasets[i - 1].shift();
+            if (datasets[i - 1].length > 40) datasets[i - 1].shift();
         }
     }
 
+    const avg = count ? (totalVolts / count) : 3.2;
+    let soc = Math.max(0, Math.min(100, ((avg - 3.0) / 0.45) * 100)); // Dynamic approximation formula 3.0V - 3.45V linear segment
+    
+    document.getElementById('socText').innerText = soc.toFixed(1);
+    document.getElementById('socFill').style.height = soc + '%';
     document.getElementById('grid').innerHTML = gridHTML;
     document.getElementById('paramBody').innerHTML = tableHTML;
 
-    // ================= CHART UPDATE =================
-    labels.push(new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
-    if (labels.length > 50) labels.shift();
+    labels.push(new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'}));
+    if (labels.length > 40) labels.shift();
 
     chart.update();
 }
-// Safety Engine with High & Low Current Cutoff
+
 function safetyEngine(d){
     const pack = Number(d.pack || 0);
     const current = Number(d.current || 0);
@@ -788,11 +541,14 @@ function safetyEngine(d){
 
     let maxCell = 0, minCell = 5;
     let balanceList = [];
+    
     for(let i=1; i<=totalCells; i++){
         const v = Number(cells[i] || 0);
-        if(v > maxCell) maxCell = v;
-        if(v < minCell) minCell = v;
-        if(v > 4.10) balanceList.push(i);
+        if(v > 0) {
+            if(v > maxCell) maxCell = v;
+            if(v < minCell) minCell = v;
+            if(v > 3.45) balanceList.push(i);
+        }
     }
 
     const settings = JSON.parse(localStorage.getItem('batterySettings')) || {
@@ -804,110 +560,36 @@ function safetyEngine(d){
 
     let relay = true, alarm = false, sms = false, status = "OK";
 
-    if(pack > settings.highCutoff){
-        relay = false; alarm = true; sms = true; status = "OVER VOLTAGE CUTOFF";
-    } 
-    else if(pack < settings.lowCutoff){
-        relay = false; alarm = true; sms = true; status = "UNDER VOLTAGE CUTOFF";
-    } 
-    else if(current > settings.highCurrentCutoff){
-        relay = false; alarm = true; sms = true; status = "OVER CURRENT (CHARGING) CUTOFF";
-    } 
-    else if(current < settings.lowCurrentCutoff){
-        relay = false; alarm = true; sms = true; status = "OVER CURRENT (DISCHARGING) CUTOFF";
-    } 
-    else if((maxCell - minCell) > 0.35){
-        alarm = true; status = "CELL IMBALANCE";
-    }
+    if(pack > settings.highCutoff){ relay = false; alarm = true; sms = true; status = "OVER VOLTAGE CUTOFF"; } 
+    else if(pack < settings.lowCutoff){ relay = false; alarm = true; sms = true; status = "UNDER VOLTAGE CUTOFF"; } 
+    else if(current > settings.highCurrentCutoff){ relay = false; alarm = true; sms = true; status = "OVER CURRENT (CHARGE)"; } 
+    else if(current < settings.lowCurrentCutoff){ relay = false; alarm = true; sms = true; status = "OVER CURRENT (DISCHARGE)"; } 
+    else if((maxCell - minCell) > 0.35 && maxCell > 0){ alarm = true; status = "CELL IMBALANCE"; }
 
     controlRef.update({
         relay, alarm, sms, status,
         balanceCells: balanceList,
-        soh: Math.max(40, Math.min(100, 100 - ((maxCell - minCell) * 25)))
+        soh: Math.max(40, Math.min(100, 100 - ((maxCell - minCell) * 20)))
     });
 }
 
-
-// Optional: Timeout detection (if data stops coming)
 setInterval(() => {
-    if (Date.now() - lastDataTime > 8000) {   // No data for 8 seconds
-        if(document.getElementById('mode').innerText !== 'OFFLINE'){     updateDashboardUI(null); }
+    if (Date.now() - lastDataTime > 10000) { // Timeout altered to 10 seconds to handle slow cellular telemetry safely
+        if(document.getElementById('mode').innerText !== 'OFFLINE') { updateDashboardUI(null); }
     }
-}, 3000);
+}, 4000);
 
-// Initialize
 window.onload = () => {
-loadBatteryOptions();
+    loadBatteryOptions();
     renderDevices();
-    // Auto connect first saved device
-const devices = JSON.parse(
-    localStorage.getItem('devices') || '[]'
-);
 
-if(devices.length > 0){
-
-    selectDevice(
-        devices[0].deviceId,
-        devices[0].battery
-    );
-}
-
-  const saved = JSON.parse(localStorage.getItem('batterySettings') || '{}');
-    
-    // Load saved battery series
-    if(saved?.batterySeries){
-
-        totalCells = Number(saved.batterySeries);
-
-        document.getElementById('batteryType').value =
-            totalCells;
-
+    const devices = JSON.parse(localStorage.getItem('devices') || '[]');
+    if(devices.length > 0){
+        selectDevice(devices[0].deviceId, devices[0].battery);
+    } else {
         rebuildChart();
     }
-
-    // Load saved voltage/current settings
-    if(saved){
-
-        document.getElementById('maxVoltage').value =
-            saved.maxVoltage || 58.4;
-
-        document.getElementById('highCutoff').value =
-            saved.highCutoff || 59.0;
-
-        document.getElementById('lowCutoff').value =
-            saved.lowCutoff || 44.0;
-
-        document.getElementById('highCurrentCutoff').value =
-            saved.highCurrentCutoff || 100;
-
-        document.getElementById('lowCurrentCutoff').value =
-            saved.lowCurrentCutoff || -100;
-    }
-
-   // Create demo data
-if (ref && typeof ref.once === "function") {
-    ref.once('value').then(snap => {
-
-        if (!snap.exists()) {
-
-            let demoCells = {};
-
-            for (let i = 1; i <= totalCells; i++) {
-                demoCells[i] = (3.35 + Math.random() * 0.45).toFixed(3);
-            }
-
-            ref.set({
-                pack: Number((totalCells * 3.35).toFixed(2)),
-                current: 5.2,
-                cells: demoCells
-            });
-
-        }
-
-    }).catch(err => {
-        console.error("Firebase read error:", err);
-    });
-}
+};
 </script>
 </body>
 </html>
