@@ -162,7 +162,7 @@ td { padding:12px; text-align:center; border-bottom:1px solid rgba(255,255,255,0
         <button onclick="signup()" class="btn devices-btn" style="width:100%;margin-bottom:10px;">SIGN UP</button>
         <button onclick="googleLogin()" class="btn" style="width:100%;background:white;color:black;margin-bottom:10px;">Continue with Google</button>
         <button onclick="forgotPassword()" class="btn" style="width:100%;background:#f59e0b;color:black;">Forgot Password</button>
-        <div id="authMsg" style="margin-top:15px;text-align:center;color:#94a3b8;"></div>
+        <div id="authMsg" style="margin-top:20px;text-align:center;color:#ff4444;font-weight:bold;background:rgba(255,0,0,0.1);padding:10px;border-radius:10px;display:none;border:1px solid rgba(255,0,0,0.2);"></div>
     </div>
 </div>
 
@@ -272,29 +272,44 @@ const chart = new Chart(document.getElementById('chart'), {
     }
 });
 
-// Auth Functions
+// Auth Functions with Visible Screen Diagnostics
 function login() {
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
     if (!email || !password) return showMsg("Please enter email and password");
-    auth.signInWithEmailAndPassword(email, password).then(() => showMsg("Login Successful")).catch(e => showMsg(e.message));
+    auth.signInWithEmailAndPassword(email, password)
+        .then(() => showMsg("Login Successful", "#00ff88"))
+        .catch(e => showMsg("Login Error: " + e.message, "#ff4444"));
 }
 function signup() {
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
     if (!email || !password) return showMsg("Please enter email and password");
-    auth.createUserWithEmailAndPassword(email, password).then(() => showMsg("Signup Successful")).catch(e => showMsg(e.message));
+    auth.createUserWithEmailAndPassword(email, password)
+        .then(() => showMsg("Signup Successful! Account Created.", "#00ff88"))
+        .catch(e => showMsg("Signup Error: " + e.message, "#ff4444"));
 }
 function googleLogin() {
     const provider = new firebase.auth.GoogleAuthProvider();
-    auth.signInWithPopup(provider).then(() => showMsg("Google Login Successful")).catch(e => showMsg(e.message));
+    auth.signInWithPopup(provider)
+        .then(() => showMsg("Google Login Successful", "#00ff88"))
+        .catch(e => showMsg("Google Auth Error: " + e.message, "#ff4444"));
 }
 function forgotPassword() {
     const email = document.getElementById('email').value.trim();
     if (!email) return showMsg("Please enter your email");
-    auth.sendPasswordResetEmail(email).then(() => showMsg("Password Reset Email Sent")).catch(e => showMsg(e.message));
+    auth.sendPasswordResetEmail(email)
+        .then(() => showMsg("Password Reset Email Sent", "#f59e0b"))
+        .catch(e => showMsg("Reset Error: " + e.message, "#ff4444"));
 }
-function showMsg(msg) { document.getElementById('authMsg').innerText = msg; }
+function showMsg(msg, color = "#ff4444") { 
+    const box = document.getElementById('authMsg');
+    box.innerText = msg; 
+    box.style.display = 'block';
+    box.style.color = color;
+    box.style.borderColor = color;
+    box.style.background = color + "1A"; // 10% opacity color background
+}
 
 auth.onAuthStateChanged(user => {
     document.getElementById('authScreen').style.display = user ? 'none' : 'flex';
@@ -308,7 +323,7 @@ function closeDevices(){ document.getElementById('devicePanel').style.left = '-4
 
 function updateBatterySetup(){
     totalCells = Number(document.getElementById('batteryType').value);
-    let maxVoltage = totalCells * 3.65; // LiFePO4 Default Calculation
+    let maxVoltage = totalCells * 3.65; 
 
     document.getElementById('maxVoltage').value = maxVoltage.toFixed(1);
     document.getElementById('highCutoff').value = (maxVoltage + 0.4).toFixed(1);
@@ -437,7 +452,7 @@ function selectDevice(deviceId, battery){
     });
 
     closeDevices();
-    alert('连接 ✅ Connected to ' + currentDeviceID);
+    alert('Connected to ' + currentDeviceID);
 }
 
 function loadBatteryOptions(){
@@ -497,7 +512,7 @@ function updateDashboardUI(d) {
         const v = Number(cells[i] || 0);
         if(v > 0) { totalVolts += v; count++; }
 
-        const percent = Math.min(100, Math.max(0, ((v - 2.5) / 1.15) * 100)); // Normalized scale for LiFePO4 (2.5V - 3.65V)
+        const percent = Math.min(100, Math.max(0, ((v - 2.5) / 1.15) * 100)); 
         let glow = v < 2.8 ? '#ff3b30' : (v > 3.6 ? '#ffcc00' : '#00ff88');
         let status = v < 2.8 ? 'LOW' : (v > 3.6 ? 'HIGH' : 'GOOD');
         
@@ -521,7 +536,7 @@ function updateDashboardUI(d) {
     }
 
     const avg = count ? (totalVolts / count) : 3.2;
-    let soc = Math.max(0, Math.min(100, ((avg - 3.0) / 0.45) * 100)); // Dynamic approximation formula 3.0V - 3.45V linear segment
+    let soc = Math.max(0, Math.min(100, ((avg - 3.0) / 0.45) * 100)); 
     
     document.getElementById('socText').innerText = soc.toFixed(1);
     document.getElementById('socFill').style.height = soc + '%';
@@ -574,7 +589,7 @@ function safetyEngine(d){
 }
 
 setInterval(() => {
-    if (Date.now() - lastDataTime > 10000) { // Timeout altered to 10 seconds to handle slow cellular telemetry safely
+    if (Date.now() - lastDataTime > 10000) { 
         if(document.getElementById('mode').innerText !== 'OFFLINE') { updateDashboardUI(null); }
     }
 }, 4000);
